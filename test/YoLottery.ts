@@ -24,7 +24,7 @@ describe("YoLottery", function () {
 
   describe("Deployment", () => {
     it("Should", () => {
-      console.log("do something");
+      console.log("...");
     });
   });
 
@@ -47,11 +47,48 @@ describe("YoLottery", function () {
 
   describe("Pool distribution interactions", () => {
     it("Should distribute money in the pool", async () => {
-        console.log("...");
-      });
+      await instance.depositPool(1, { value: 231 });
+      await instance.connect(addr1).depositPool(1, { value: 123 });
+      await instance.connect(addr2).depositPool(1, { value: 312 });
+
+      await instance.distributePool(1);
+
+      expect(await instance.getBalance(1)).to.equal(0);
+      expect(await instance.connect(addr1).getBalance(1)).to.equal(0);
+
+      expect(await instance.getOwedAmount(1)).to.equal(
+        ethers.utils.parseEther("1.0")
+      );
+      expect(await instance.connect(addr1).getOwedAmount(1)).to.equal(
+        ethers.utils.parseEther("1.0")
+      );
+    });
   });
 
-  it("Should withdraw funds from the pool to user account", async () => {
-    console.log("...");
+  describe("Pool withdrawl interactions", () => {
+    it("Should withdraw funds from the pool to user account", async () => {
+      await instance.depositPool(1, { value: ethers.utils.parseEther("1.0") });
+      await instance
+        .connect(addr1)
+        .depositPool(1, { value: ethers.utils.parseEther("2.0") });
+      await instance
+        .connect(addr2)
+        .depositPool(1, { value: ethers.utils.parseEther("3.0") });
+
+      await instance.distributePool(1);
+      const tx = await instance.withdraw(1);
+      const rc = await tx.wait();
+
+      const event = rc.events?.find((event) => event.event === "Withdrawl");
+      const [sender, withdrawedFunds] = event?.args!;
+      console.log(
+        "Result of withdrawl event fired >>> ",
+        sender,
+        withdrawedFunds
+      );
+
+      expect(withdrawedFunds).to.equal(ethers.utils.parseEther("1.0"));
+      expect(sender).to.equal(await owner.getAddress());
+    });
   });
 });

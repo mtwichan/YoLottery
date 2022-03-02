@@ -8,12 +8,12 @@ import "hardhat/console.sol";
     2. Transfer money in and out of pool
 */
 contract YoLottery {
-    // address pay
     mapping(address => mapping(uint256 => uint256)) public balance;
     mapping(address => mapping(uint256 => uint256)) public owedAmount;
     mapping(uint256 => address[]) public participants;
     mapping(uint256 => uint256) poolBalance;
     mapping(uint256 => uint256) poolTime;
+
     constructor() {
 
     }
@@ -55,19 +55,24 @@ contract YoLottery {
     function distributePool(uint256 poolNumber) external {
         
         address[] storage _participants = participants[poolNumber];
-        for (uint256 i = 0; i < _participants.length; i++) {
+        for (uint256 idx = 0; idx < _participants.length; idx++) {
             // TODO: if user has not withdraw previous pool add more funds
-            address distributeAddress = _participants[poolNumber]; 
-            owedAmount[distributeAddress][poolNumber] = 1 ether;
-            balance[distributeAddress][poolNumber] = 0;
+            address distributerAddress = _participants[idx]; 
+            owedAmount[distributerAddress][poolNumber] = 1 ether; // Random number
+            balance[distributerAddress][poolNumber] = 0;
         }
         poolBalance[poolNumber] = 0;
     }
 
-    function withdraw(uint256 poolNumber) external {
+    event Withdrawl(address indexed sender, uint256 withdrawedFunds);
+
+    function withdraw(uint256 poolNumber) public returns (uint256) {
         require(owedAmount[msg.sender][poolNumber] > 0, "User must have funds oweing to them"); // ensure user can only pull out their funds
-        payable(msg.sender).transfer(owedAmount[msg.sender][poolNumber]);
+        uint256 owedFunds = owedAmount[msg.sender][poolNumber];
+        payable(msg.sender).transfer(owedFunds);
         owedAmount[msg.sender][poolNumber] = 0;
+        emit Withdrawl(msg.sender, owedFunds);
+        return owedFunds;
     }
 
     
