@@ -3,9 +3,12 @@ pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
 /*
-    Goal: 
-    1. Create a pool that people can put money in
-    2. Transfer money in and out of pool
+    TODO: 
+    1. Create a pool that people can put money in -> Complete
+    2. Transfer money in and out of pool -> Complete
+    3. Randomize distribution of funds -> WIP
+    4. Unlock pool after some time interval -> WIP
+    5.
 */
 contract YoLottery {
     mapping(address => mapping(uint256 => uint256)) public balance;
@@ -66,13 +69,12 @@ contract YoLottery {
 
     event Withdrawl(address indexed sender, uint256 withdrawedFunds);
 
-    function withdraw(uint256 poolNumber) public returns (uint256) {
+    function withdraw(uint256 poolNumber) public {
         require(owedAmount[msg.sender][poolNumber] > 0, "User must have funds oweing to them"); // ensure user can only pull out their funds
         uint256 owedFunds = owedAmount[msg.sender][poolNumber];
         payable(msg.sender).transfer(owedFunds);
         owedAmount[msg.sender][poolNumber] = 0;
         emit Withdrawl(msg.sender, owedFunds);
-        return owedFunds;
     }
 
     

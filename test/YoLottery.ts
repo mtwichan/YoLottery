@@ -40,7 +40,10 @@ describe("YoLottery", function () {
     it("Should not be able to deposit more than account balance", async () => {
       console.log("Balance owner >>>", await owner.getBalance());
       await expect(
-        instance.depositPool(1, { from: owner.getAddress(), value: 9999999 })
+        instance.depositPool(1, {
+          from: owner.getAddress(),
+          value: ethers.utils.parseEther("100.0"),
+        })
       ).to.be.revertedWith("Ensure sender has enough funds to put in pool");
     });
   });
@@ -74,8 +77,8 @@ describe("YoLottery", function () {
       await instance
         .connect(addr2)
         .depositPool(1, { value: ethers.utils.parseEther("3.0") });
-
       await instance.distributePool(1);
+
       const tx = await instance.withdraw(1);
       const rc = await tx.wait();
 
