@@ -1,6 +1,10 @@
 # YoLottery
 ![GitHub](https://img.shields.io/github/license/mtwichan/YoLottery)
 
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/33464965/156829072-366a9cbe-dc02-4fe8-a38f-01cdac97a104.png" width="200" height="200" />
+</p>
+
 YoLottery is a decentralized application built on the Ethereum network. The premise of the application is for players to put cryptocurrency (Ethereum/ERC20 tokens) into a time expiring pool, where the pool of cryptocurrency is randomly distributed to all players at expiration. 
 
 ## Project Status
