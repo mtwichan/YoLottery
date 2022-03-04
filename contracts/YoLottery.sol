@@ -10,19 +10,16 @@ import "hardhat/console.sol";
     4. Unlock pool after some time interval -> WIP
     5. Change types to optimal values, ex: all uints should not be uint256 -> WIP
     6. Add modifiers -> WIP
-    7. Start pool when certain parameters are reached
-    - 
-
+    7. Start pool 
+    - minimum buy in and minimum total pool?
+    - reward for putting more funds in? - get larger chunk of left over funds?
+    8. Starting pool parameters -> WIP
     4. How to figure out the time intervals
     - when does the pool start
     - would need to do -> time_now - time_pool_started < time_interval
 */
 contract YoLottery {
-    struct PoolTiming{
-        uint startTime;
-        uint interval;
-    }
-
+    /* Modifiers */
     // Ensure the address calling function is the owner
     modifier onlyOwner() {
         require(msg.sender == owner);
@@ -59,6 +56,12 @@ contract YoLottery {
         _;
     }
 
+    /* Variables */
+    struct PoolTiming{
+        uint startTime;
+        uint interval;
+        bool locked;
+    }
     mapping(address => mapping(uint256 => uint256)) public balance; // I don't think I need this because we don't need to track how much a user put in the pool really
     mapping(address => uint256) public owedAmount; 
     mapping(uint256 => address[]) public participants;
@@ -67,7 +70,11 @@ contract YoLottery {
     mapping(uint256 => PoolTiming) poolTime;
     
     address owner;
+    
+    /* Events */
+    event Withdrawl(address indexed sender, uint256 withdrawedFunds);
 
+    /* Functions */
     constructor() {
         owner = msg.sender;
     }
@@ -81,14 +88,14 @@ contract YoLottery {
     }
     // Allow owner to remove pool
     function removePool(uint256 poolNumber) external onlyOwner poolExists(poolNumber) poolUnlocked(poolNumber) {
-        pools[poolNumber] = false;
+        delete pools[poolNumber];
         delete poolBalance[poolNumber];
         delete poolTime[poolNumber];
     }
 
     // Start pool only if minimum buy in reached
     function startPool(uint256 poolNumber) public poolExists(poolNumber) {
-
+        poolTime[poolNumber].startTime = block.timestamp;
     }
 
     // Allow owner to change time interval if pool is not running
@@ -127,8 +134,6 @@ contract YoLottery {
         }
         poolBalance[poolNumber] = 0;
     }
-
-    event Withdrawl(address indexed sender, uint256 withdrawedFunds);
 
     // User withdraws funds owed to them
     function withdraw() payable external {
