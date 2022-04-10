@@ -111,7 +111,7 @@ contract Pool is VRFConsumerBaseV2 {
     modifier poolClosed() {
         require(endTime < block.timestamp, "The pool has closed");
         _;
-    }
+    } 
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only the owner can call this function");
@@ -152,7 +152,7 @@ contract Pool is VRFConsumerBaseV2 {
         uint256[] memory randomWords
     ) internal override {
         for (uint i = 0; i < randomWords.length; i++) {
-            randomWords[i] = ((randomWords[i] % 100) + 1) / 100; 
+            randomWords[i] = (randomWords[i] % 100) + 1; // Number from 1 to 100
         }
         s_randomWords = randomWords;
     }
@@ -195,23 +195,23 @@ contract Pool is VRFConsumerBaseV2 {
         require(poolState == State.Running, "Pool must be in the running state");
         require(s_randomWords.length != 0, "Must populate random values first");
         address ticketOwner;
-        
-        poolState = State.Ready;
 
         // Allocate pool fees and prize
-        uint poolManagementFee = (address(this).balance * 3) / 100;
-        uint poolUnlockFee = (address(this).balance * 2) / 100;
-        uint poolPrize = (address(this).balance * 95) / 100;
+        // https://stackoverflow.com/questions/68310368/how-to-calculate-percentage-in-solidity
+        uint poolBalance = address(this).balance;
+        uint poolManagementFee = percentage(poolBalance, 3);
+        uint poolUnlockFee = percentage(poolBalance, 2);
+        uint poolPrize = percentage(poolBalance, 95);
         
+        poolState = State.Ready;
         balances[msg.sender] += poolUnlockFee;
 
         // Distribute funds from pool to each participant
         // TODO: iterate over amt of tickets per user
         for (uint idx = 0; idx < participants.length; idx++) {
             ticketOwner = participants[idx];
-            balances[ticketOwner] += poolPrize / 10; // 10 percent of pool price
+            balances[ticketOwner] += percentage(poolPrize, s_randomWords[idx]);
             // balances[ticketOwner] = randomized probabilty * value * use -> need chainlink VRF here
-            // ticketBalances[ticketOwner] = 0;
             delete ticketBalances[ticketOwner]; 
         }
 
@@ -236,6 +236,7 @@ contract Pool is VRFConsumerBaseV2 {
         emit WithDrawEvent(msg.sender, owedFunds);
     }
 
+    /* Emergency Functions */
     // Stop the pool in case of an emergency
     function emergencyStop() public onlyOwner {
         poolState = State.Canceled;
@@ -259,6 +260,12 @@ contract Pool is VRFConsumerBaseV2 {
         poolState = State.Ready;
     }
 
+    /* Utility Functions */
+    function percentage(uint value, uint pct) internal pure returns (uint256) {
+        return (value / 100) * pct;
+    }
+
+    /* Getter and Setter Functions*/
     function getContractBalance() external view returns (uint) {
         return address(this).balance;
     }
