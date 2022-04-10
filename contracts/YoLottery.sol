@@ -51,25 +51,26 @@ pragma solidity ^0.8.0;
     decrease the buy in fee by some number as the value goes down
 */ 
 
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 
 contract Pool is VRFConsumerBaseV2 {
     /* VRF Variables */
     VRFCoordinatorV2Interface COORDINATOR;
 
     // Subscription ID
-    uint64 s_subscriptionId;
+    uint64 public s_subscriptionId;
 
     // Rinkeby coordinator
-    address vrfCoordinator = 0x6168499c0cFfCaCD319c818142124B7A15E857ab;
+    address public vrfCoordinator = 0x6168499c0cFfCaCD319c818142124B7A15E857ab;
 
     // The gas lane to use, which specifies the maximum gas price to bump to
-    bytes32 keyHash = 0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc;
+    bytes32 public keyHash = 0xd89b2bf150e3b9e13446986e571fb9cab24b13cea0a43ea20a6049a85cc807cc;
 
     // The default is 3, but you can set this higher.
-    uint16 requestConfirmations = 3;
+    uint16 public requestConfirmations = 3;
     uint256[] public s_randomWords;
+    uint256[] public randomWordsTest;
     uint256 public s_requestId;
 
     /* Variables */
@@ -131,7 +132,7 @@ contract Pool is VRFConsumerBaseV2 {
     }
 
     /* VRF Functions */
-    function requestRandomNumbers() private poolClosed {
+    function requestRandomNumbers() public poolClosed {
         require(poolState == State.Running, "Pool must be in the running state");
         require(s_randomWords.length == 0, "Must populate random values first");
 
@@ -146,10 +147,10 @@ contract Pool is VRFConsumerBaseV2 {
     }
 
     // Get random values and do something with them
-    function fufillRandomWords(
+    function fulfillRandomWords(
         uint256,
         uint256[] memory randomWords
-    ) private override {
+    ) internal override {
         for (uint i = 0; i < randomWords.length; i++) {
             randomWords[i] = ((randomWords[i] % 100) + 1) / 100; 
         }
