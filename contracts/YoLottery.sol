@@ -26,7 +26,7 @@ pragma solidity ^0.8.0;
     - https://solidity-by-example.org/sending-ether/
     - money will be stored in contract as ETH in this case
     - use call
-    3. Randomize distribution of funds -> WIP -- need to wait for Chainlink -- just use basic randomization for now
+    3. Randomize distribution of funds -> X
     - use block numbers + timestamp + amount of tickets for randomization
     4. Unlock pool after some time interval -> X
     - distributeFunds function, anyone can call and it will unlock. User is rewarded for unlocking pool
@@ -39,7 +39,7 @@ pragma solidity ^0.8.0;
     9. Add ticket system so fixed cost bets to get a ticket - each ticket gives a play in probability game
     10. Time release pool by letting user free it for small reward -> X
     11. Pool Creator & Pool Contracts -> WIP
-    12. Circuit breaker and emergency -> WIP
+    12. Emergency -> X
     Pools:
     - The balances of each participant in a pool will be recorded and it will be the users responsibility to pull out all funds for each pool accumulated to them... 
 
@@ -132,6 +132,7 @@ contract Pool is VRFConsumerBaseV2 {
     }
 
     /* VRF Functions */
+    // TODO: Optimize for less queries
     function requestRandomNumbers() public poolClosed {
         require(poolState == State.Running, "Pool must be in the running state");
         require(s_randomWords.length == 0, "Must populate random values first");
@@ -200,7 +201,7 @@ contract Pool is VRFConsumerBaseV2 {
         // https://stackoverflow.com/questions/68310368/how-to-calculate-percentage-in-solidity
         uint poolBalance = address(this).balance;
         uint poolManagementFee = percentage(poolBalance, 3);
-        uint poolUnlockFee = percentage(poolBalance, 2);
+        uint poolUnlockFee = percentage(poolBalance, 1);
         uint poolPrize = percentage(poolBalance, 95);
         
         poolState = State.Ready;
@@ -208,6 +209,25 @@ contract Pool is VRFConsumerBaseV2 {
 
         // Distribute funds from pool to each participant
         // TODO: iterate over amt of tickets per user
+
+        // Iterate randomWordsIdx by 1 every 200th iteration to avoid O(N^2) for loop
+        // uint randomWordsIdx = 0;
+        // uint randomWordsVal = 0;
+        // uint probability = 0;
+        // uint poolShare = 0;
+        // for (uint i = 0; i < totalTickets; i++) {
+        //     if (totalTickets % 200 == 0) {
+        //         randomWordsIdx += 1;
+        //         randomWordsVal = s_randomWords[randomWordsIdx];
+        //         shiftIdx = 0;
+        //     }
+        //     
+        //     probability = ((randomWordsVal >> shiftIdx) % 100) + 1; // Number from 1 to 100
+        //     poolShare = percentage(poolPrize, probability);
+        //     balances[ticketOwner] += poolShare;
+        //     shiftIdx += 1;
+        // }
+      
         for (uint idx = 0; idx < participants.length; idx++) {
             ticketOwner = participants[idx];
             balances[ticketOwner] += percentage(poolPrize, s_randomWords[idx]);
@@ -222,7 +242,7 @@ contract Pool is VRFConsumerBaseV2 {
         delete s_randomWords;
 
         // Clear tickets
-        totalTickets = 0;
+        delete totalTickets;
 
         emit DistributePoolEvent(msg.sender, poolManagementFee, poolUnlockFee, poolPrize);
     }
@@ -246,12 +266,11 @@ contract Pool is VRFConsumerBaseV2 {
         for (uint idx = 0; idx < participants.length; idx++) {
             ticketOwner = participants[idx];
             balances[ticketOwner] += ticketBalances[ticketOwner] * buyLimit;
-            // ticketBalances[ticketOwner] = 0;
-            totalTickets = 0;
             delete ticketBalances[ticketOwner]; 
         }
         // Clear participants
         delete participants;
+        delete totalTickets;
     }
 
     // Move pool out of emergency state and back to ready
