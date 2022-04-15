@@ -12,7 +12,6 @@ pragma solidity ^0.8.0;
 //     }
 // }
 
-// only owner should be able to create pool
 /*
     TODO: 
     1. Create a pool that people can put money in -> X
@@ -79,6 +78,7 @@ contract Pool is VRFConsumerBaseV2 {
     uint public timeInterval;
     uint public startTime;
     uint public endTime;
+    uint public ticketCap = 100000;
     uint32 public totalTickets;
     address public owner;
     bool internal locked;
@@ -132,18 +132,18 @@ contract Pool is VRFConsumerBaseV2 {
     }
 
     /* VRF Functions */
-    // TODO: Optimize for less queries
     function requestRandomNumbers() public poolClosed {
         require(poolState == State.Running, "Pool must be in the running state");
         require(s_randomWords.length == 0, "Must populate random values first");
 
-        uint32 callbackGasLimit = totalTickets * 20000; // 20000 per word is reasonable
+        uint32 callbackGasLimit = 20000; // 20000 per word is reasonable
+        uint32 amountOfWords = 1;
         s_requestId = COORDINATOR.requestRandomWords(
             keyHash,
             s_subscriptionId,
             requestConfirmations,
             callbackGasLimit,
-            totalTickets
+            amountOfWords
         );
     }
 
@@ -152,9 +152,6 @@ contract Pool is VRFConsumerBaseV2 {
         uint256,
         uint256[] memory randomWords
     ) internal override {
-        for (uint i = 0; i < randomWords.length; i++) {
-            randomWords[i] = (randomWords[i] % 100) + 1; // Number from 1 to 100
-        }
         s_randomWords = randomWords;
     }
 
@@ -174,15 +171,22 @@ contract Pool is VRFConsumerBaseV2 {
         require(poolState == State.Running, "Pool must be in the running state");
         require(msg.value >= buyLimit, "User must purchase tickets above the buying limit");
         require((msg.value % buyLimit) == 0, "User must purchase tickets at a multiple of the buy limit");
+        require(totalTickets <= ticketCap, "Ticket cap has been reached")
 
         // Add user to participants if first time buying ticket
         if (ticketBalances[msg.sender] == 0) {
-            participants.push(msg.sender);
+            
         }
 
         // TODO: Clean up types -> int32 casting
         // Get total amount of tickets
         uint amtTickets = msg.value / buyLimit;
+        
+        // Add user multiple times to participants array depending
+        // on amount of tickets bought
+        for (uint idx = 0; idx < amtTickets; idx++) {
+            participants.push(msg.sender);
+        }
 
         // Increase ticket count for address
         ticketBalances[msg.sender] += amtTickets;
@@ -191,6 +195,22 @@ contract Pool is VRFConsumerBaseV2 {
         emit BuyTicketEvent(msg.sender, amtTickets);
     }
     
+    // Generate random numbers from some seed value
+    function randomNumberGenerator(uint seed) internal pure returns(uint) {
+        modulus = seed % 10000;
+        multiplier = 6782;
+        increment = 8769;
+
+        if (modulus == 0) {
+            modulus = 1;
+        }
+
+        // TODO: confirm values since floats might make things go down to zero
+        seed = (multiplier * seed + increment) % modulus;
+        result = (seed * 100) / modulus;
+        return result;
+    }
+
     // Distribute funds in pool to all ticket holders
     function distributePool() public poolClosed {
         require(poolState == State.Running, "Pool must be in the running state");
@@ -208,30 +228,17 @@ contract Pool is VRFConsumerBaseV2 {
         balances[msg.sender] += poolUnlockFee;
 
         // Distribute funds from pool to each participant
-        // TODO: iterate over amt of tickets per user
-
-        // Iterate randomWordsIdx by 1 every 200th iteration to avoid O(N^2) for loop
-        // uint randomWordsIdx = 0;
-        // uint randomWordsVal = 0;
-        // uint probability = 0;
-        // uint poolShare = 0;
-        // for (uint i = 0; i < totalTickets; i++) {
-        //     if (totalTickets % 200 == 0) {
-        //         randomWordsIdx += 1;
-        //         randomWordsVal = s_randomWords[randomWordsIdx];
-        //         shiftIdx = 0;
-        //     }
-        //     
-        //     probability = ((randomWordsVal >> shiftIdx) % 100) + 1; // Number from 1 to 100
-        //     poolShare = percentage(poolPrize, probability);
-        //     balances[ticketOwner] += poolShare;
-        //     shiftIdx += 1;
-        // }
-      
-        for (uint idx = 0; idx < participants.length; idx++) {
+        // Take VRF2 seed number, right shift 1 bit (since value is 256 bits originally)
+        // Use this number as a random seed for a number generator for probabilities
+        // http://ntci.on.ca/compsci/tik/ch8/8_4.htm
+        uint random_seed = s_randomWords[0] >> 1;
+        uint random_number = 0;
+        for (uint idx = 0; idx > (totalTickets - 1); idx++) {
+            random_seed += idx;
+            random_number = randomNumberGenerator(random_seed);
             ticketOwner = participants[idx];
-            balances[ticketOwner] += percentage(poolPrize, s_randomWords[idx]);
-            // balances[ticketOwner] = randomized probabilty * value * use -> need chainlink VRF here
+            
+            balances[ticketOwner] += percentage(poolPrize, random_number);
             delete ticketBalances[ticketOwner]; 
         }
 
@@ -263,11 +270,12 @@ contract Pool is VRFConsumerBaseV2 {
         address ticketOwner;
 
         // Give all funds back to users who purchased tickets in pool
-        for (uint idx = 0; idx < participants.length; idx++) {
+        for (uint idx = 0; idx > (totalTickets - 1); idx++) {
             ticketOwner = participants[idx];
             balances[ticketOwner] += ticketBalances[ticketOwner] * buyLimit;
             delete ticketBalances[ticketOwner]; 
         }
+
         // Clear participants
         delete participants;
         delete totalTickets;
