@@ -3,14 +3,34 @@ pragma solidity ^0.8.0;
 
 // import "hardhat/console.sol";
 
-// contract PoolCreator { // Is this neccessary?
-//     Pool[] public pools;
 
-//     function createPool() public {
-//         Pool newPool = new Pool(); // new pool connected to owner
-//         pools.push(newPool);
-//     }
-// }
+contract PoolCreator { 
+    Pool[] public pools;
+    mapping(uint => PoolData);
+    address owner;
+
+    uint poolId;
+
+    constructor() {
+        owner = msg.sender;
+    }
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the owner can call this function");
+        _;
+    }
+
+    function createPool(uint _buyLimit, uint _timeInterval, uint64 _subscriptionId) public onlyOwner {      
+        Pool newPool = new Pool(msg.sender, _buyLimit, _timeInterval, _subscriptionId); // new pool connected to owner
+        PoolData =
+        pools.push(newPool);
+        poolId += 1;
+    }
+
+    function removePool(address poolAddress) public onlyOwner {
+        Pool existingPool = Pool(poolAddress);
+        selfdestruct(poolAddress);
+    }
+}
 
 /*
     TODO: 
@@ -261,6 +281,12 @@ contract Pool is VRFConsumerBaseV2 {
         (bool sent, bytes memory data) = msg.sender.call{value: owedFunds}("");
         require(sent, "Failed to send ether...");
         emit WithDrawEvent(msg.sender, owedFunds);
+    }
+
+    function closeContract() external onlyOwner {
+        require(poolState == State.Canceled, "Pool must be in the canceled state");
+        selfdestruct(owner);
+        
     }
 
     /* Emergency Functions */
