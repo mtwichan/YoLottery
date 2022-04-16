@@ -1,35 +1,81 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
+import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
+import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/interfaces/LinkTokenInterface.sol";
+
 // import "hardhat/console.sol";
-
-
-contract PoolCreator { 
-    Pool[] public pools;
-    mapping(uint => PoolData);
+contract PoolCreator is VRFConsumerBaseV2 { 
+    /* Variables */
+    mapping(address => Pool) PoolData;
     address owner;
 
-    uint poolId;
+    /* VRF2 variables */
+    VRFCoordinatorV2Interface COORDINATOR;
+    LinkTokenInterface LINKTOKEN;
 
-    constructor() {
-        owner = msg.sender;
-    }
+    // Rinkeby coordinator. For other networks,
+    // see https://docs.chain.link/docs/vrf-contracts/#configurations
+    address vrfCoordinator = 0x6168499c0cFfCaCD319c818142124B7A15E857ab;
+
+    // Rinkeby LINK token contract. For other networks, see
+    // https://docs.chain.link/docs/vrf-contracts/#configurations
+    address link_token_contract = 0x01BE23585060835E02B77ef475b0Cc51aA1e0709;
+
+    /* Modifiers */
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only the owner can call this function");
+        require(msg.sender == owner);
         _;
     }
 
-    function createPool(uint _buyLimit, uint _timeInterval, uint64 _subscriptionId) public onlyOwner {      
-        Pool newPool = new Pool(msg.sender, _buyLimit, _timeInterval, _subscriptionId); // new pool connected to owner
-        PoolData =
-        pools.push(newPool);
-        poolId += 1;
+    constructor() VRFConsumerBaseV2(vrfCoordinator) {
+        
+        COORDINATOR = VRFCoordinatorV2Interface(vrfCoordinator);
+        LINKTOKEN = LinkTokenInterface(link_token_contract);
+        owner = msg.sender;
     }
 
-    function removePool(address poolAddress) public onlyOwner {
-        Pool existingPool = Pool(poolAddress);
-        selfdestruct(poolAddress);
+    /* VRF functions */
+
+    function topUpSubscription(uint64 _subscriptionId, uint256 _amount) external onlyOwner {
+        LINKTOKEN.transferAndCall(address(COORDINATOR), _amount, abi.encode(_subscriptionId));
     }
+
+    function addConsumer(uint64 _subscriptionId, address _consumerAddress) external onlyOwner {
+        COORDINATOR.addConsumer(_subscriptionId, _consumerAddress);
+    }
+
+    function removeConsumer(uint64 _subscriptionId, address _consumerAddress) external onlyOwner {
+        COORDINATOR.removeConsumer(_subscriptionId, _consumerAddress);
+    }
+
+    function cancelSubscription(uint64 _subscriptionId, address receivingWallet) external onlyOwner {
+        COORDINATOR.cancelSubscription(_subscriptionId, receivingWallet);
+    }
+
+    function withdrawLinkToken(uint256 amount, address to) external onlyOwner {
+        LINKTOKEN.transfer(to, amount);
+    }
+
+    function createPool(uint _buyLimit, uint _timeInterval, uint64 _subscriptionId) external onlyOwner {      
+        Pool newPool = new Pool(owner, _buyLimit, _timeInterval, _subscriptionId); 
+        PoolData[address(newPool)] = newPool;
+        COORDINATOR.addConsumer(_subscriptionId, address(newPool));
+    }
+
+    function removePool(address payable _poolAddress, uint64 _subscriptionId) external onlyOwner {
+        Pool existingPool = Pool(_poolAddress);
+        COORDINATOR.removeConsumer(_subscriptionId, _poolAddress);
+        existingPool.closeContract();
+        delete PoolData[_poolAddress];
+    }
+
+    // Needed in order for inherit to work
+    function fulfillRandomWords(
+        uint256,
+        uint256[] memory randomWords
+    ) internal override {}
 }
 
 /*
@@ -70,12 +116,12 @@ contract PoolCreator {
     decrease the buy in fee by some number as the value goes down
 */ 
 
-import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "https://github.com/smartcontractkit/chainlink/blob/develop/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-
 contract Pool is VRFConsumerBaseV2 {
     /* VRF Variables */
     VRFCoordinatorV2Interface COORDINATOR;
+
+    // Rinkeby LINK
+    address link_token_contract = 0x01BE23585060835E02B77ef475b0Cc51aA1e0709;
 
     // Subscription ID
     uint64 public s_subscriptionId;
@@ -167,6 +213,11 @@ contract Pool is VRFConsumerBaseV2 {
         );
     }
 
+    // Set the subscripion Id
+    function setSubcriptionId(uint64 _subscriptionId) public onlyOwner{
+        s_subscriptionId = _subscriptionId;
+    }
+
     // Get random values and do something with them
     function fulfillRandomWords(
         uint256,
@@ -191,12 +242,7 @@ contract Pool is VRFConsumerBaseV2 {
         require(poolState == State.Running, "Pool must be in the running state");
         require(msg.value >= buyLimit, "User must purchase tickets above the buying limit");
         require((msg.value % buyLimit) == 0, "User must purchase tickets at a multiple of the buy limit");
-        require(totalTickets <= ticketCap, "Ticket cap has been reached")
-
-        // Add user to participants if first time buying ticket
-        if (ticketBalances[msg.sender] == 0) {
-            
-        }
+        require(totalTickets <= ticketCap, "Ticket cap has been reached");
 
         // TODO: Clean up types -> int32 casting
         // Get total amount of tickets
@@ -217,17 +263,17 @@ contract Pool is VRFConsumerBaseV2 {
     
     // Generate random numbers from some seed value
     function randomNumberGenerator(uint seed) internal pure returns(uint) {
-        modulus = seed % 10000;
-        multiplier = 6782;
-        increment = 8769;
+        uint modulus = seed % 10000;
+        uint multiplier = 6782;
+        uint increment = 8769;
 
         if (modulus == 0) {
             modulus = 1;
         }
 
         // TODO: confirm values since floats might make things go down to zero
-        seed = (multiplier * seed + increment) % modulus;
-        result = (seed * 100) / modulus;
+        uint newSeed = (multiplier * seed + increment) % modulus;
+        uint result = (newSeed * 100) / modulus;
         return result;
     }
 
@@ -285,8 +331,7 @@ contract Pool is VRFConsumerBaseV2 {
 
     function closeContract() external onlyOwner {
         require(poolState == State.Canceled, "Pool must be in the canceled state");
-        selfdestruct(owner);
-        
+        selfdestruct(payable(owner));
     }
 
     /* Emergency Functions */
