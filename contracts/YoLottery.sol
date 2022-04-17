@@ -15,12 +15,10 @@ contract PoolCreator is VRFConsumerBaseV2 {
     VRFCoordinatorV2Interface COORDINATOR;
     LinkTokenInterface LINKTOKEN;
 
-    // Rinkeby coordinator. For other networks,
-    // see https://docs.chain.link/docs/vrf-contracts/#configurations
+    // Rinkeby coordinator
     address vrfCoordinator = 0x6168499c0cFfCaCD319c818142124B7A15E857ab;
 
-    // Rinkeby LINK token contract. For other networks, see
-    // https://docs.chain.link/docs/vrf-contracts/#configurations
+    // Rinkeby LINK token contract
     address link_token_contract = 0x01BE23585060835E02B77ef475b0Cc51aA1e0709;
 
     /* Modifiers */
@@ -37,7 +35,6 @@ contract PoolCreator is VRFConsumerBaseV2 {
     }
 
     /* VRF functions */
-
     function topUpSubscription(uint64 _subscriptionId, uint256 _amount) external onlyOwner {
         LINKTOKEN.transferAndCall(address(COORDINATOR), _amount, abi.encode(_subscriptionId));
     }
@@ -50,8 +47,8 @@ contract PoolCreator is VRFConsumerBaseV2 {
         COORDINATOR.removeConsumer(_subscriptionId, _consumerAddress);
     }
 
-    function cancelSubscription(uint64 _subscriptionId, address receivingWallet) external onlyOwner {
-        COORDINATOR.cancelSubscription(_subscriptionId, receivingWallet);
+    function cancelSubscription(uint64 _subscriptionId, address _receivingWallet) external onlyOwner {
+        COORDINATOR.cancelSubscription(_subscriptionId, _receivingWallet);
     }
 
     function withdrawLinkToken(uint256 amount, address to) external onlyOwner {
